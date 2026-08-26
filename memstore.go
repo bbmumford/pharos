@@ -12,8 +12,9 @@ import (
 
 // MemStore is an in-memory reference StatusStore — the test/dev backend and the semantic reference a
 // durable (SQLite/Turso) store must match. Thread-safe; clock and id generator are injectable for
-// deterministic tests. It reproduces the source query semantics: recent-checks ordering/limit, the
-// maintenance/incident day-cutoff and status filters, and the active-maintenance-window lookup.
+// deterministic tests. It implements the query semantics the contract requires: recent-checks
+// ordering/limit, the maintenance/incident day-cutoff and status filters, and the
+// active-maintenance-window lookup.
 type MemStore struct {
 	mu              sync.Mutex
 	services        map[string]*Service
@@ -88,8 +89,8 @@ func (m *MemStore) GetServiceBySlug(_ context.Context, slug string) (*Service, e
 	return &cp, nil
 }
 
-// UpsertService is a store helper (not in the source Repository, which seeded services via SQL) so a
-// consumer/seed can populate services through the contract. Keeps seeding store-agnostic.
+// UpsertService lets a seed or consumer populate services through the contract, keeping seeding
+// store-agnostic (GetAllServices/GetServiceBySlug are read-only).
 func (m *MemStore) UpsertService(_ context.Context, s *Service) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -103,10 +104,10 @@ func (m *MemStore) UpsertService(_ context.Context, s *Service) error {
 
 // ── Endpoints ──
 
-// derived returns e with LastStatus/LastHTTPStatus/LastCheckAt/LastResponseMS taken from its most
-// recent check ("unknown" when never checked). These four fields are NOT persisted on the endpoint —
-// they are computed from the checks table, matching the SQL store's latest-check LEFT JOIN. Caller
-// holds m.mu.
+// derived returns e with LastStatus/LastHTTPStatus/LastCheckAt/LastResponseMS set from its most
+// recent check ("unknown" when never checked). An endpoint's last status is defined as its latest
+// check's status: these four fields are not persisted on the endpoint, they are computed on read, so
+// UpsertEndpoint never has to be re-issued when a check arrives. Caller holds m.mu.
 func (m *MemStore) derived(e Endpoint) Endpoint {
 	var latest *Check
 	for _, c := range m.checks {
@@ -125,8 +126,8 @@ func (m *MemStore) derived(e Endpoint) Endpoint {
 	return e
 }
 
-// GetEndpointsByService returns every endpoint for a service (enabled or not, matching the source),
-// ordered by name, each with its derived last-check status.
+// GetEndpointsByService returns every endpoint for a service (enabled or not), ordered by name, each
+// with its derived last-check status.
 func (m *MemStore) GetEndpointsByService(_ context.Context, serviceSlug string) ([]Endpoint, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -140,8 +141,9 @@ func (m *MemStore) GetEndpointsByService(_ context.Context, serviceSlug string) 
 	return out, nil
 }
 
-// GetAllEndpoints returns only ENABLED endpoints (source: WHERE enabled = 1), ordered by
-// service+name, each with its derived last-check status.
+// GetAllEndpoints returns only ENABLED endpoints, ordered by service+name, each with its derived
+// last-check status. The health checker and the overall-status roll-up consume this, so a disabled
+// endpoint neither gets probed nor affects a service's status.
 func (m *MemStore) GetAllEndpoints(_ context.Context) ([]Endpoint, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -399,8 +401,8 @@ func (m *MemStore) InsertIncidentUpdate(_ context.Context, u *IncidentUpdate) er
 func (m *MemStore) GetUptimeMetrics(_ context.Context, endpointSlug, serviceSlug string, days int) ([]UptimeMetric, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	// serviceSlug widens the set to every endpoint in that service; endpointSlug narrows to one. When
-	// both are empty, all endpoints are included (matching the source's optional filters).
+	// serviceSlug widens the set to every endpoint in that service; endpointSlug narrows to one; when
+	// both are empty, all endpoints are included.
 	var slugs map[string]bool
 	if endpointSlug != "" {
 		slugs = map[string]bool{endpointSlug: true}

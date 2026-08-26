@@ -16,8 +16,8 @@ var ErrAlreadySubscribed = errors.New("pharos: email already subscribed")
 // SubscriberService manages status-page email subscriptions and owns the crypto seam: the email is
 // encrypted at rest (injected Encryptor) with a separate deterministic hash for uniqueness, and the
 // verify/unsubscribe tokens are stored only as hashes. Plaintext email and raw tokens never reach the
-// store. This completes the subscriber capability the store contract implies (the source stored these
-// columns but its Repository exposed no writer for them).
+// store. It is the writer for the subscriber columns the store holds (encrypted email, hashes),
+// completing the subscribe capability.
 type SubscriberService struct {
 	store    StatusStore
 	enc      Encryptor

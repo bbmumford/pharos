@@ -12,8 +12,8 @@ import (
 // SQLStore is the durable default StatusStore over any database/sql driver — the shipped "standalone
 // unit" store. The package imports only database/sql (stdlib); the APP supplies the opened *sql.DB and
 // registers the driver (go-libsql/Turso, modernc SQLite, Postgres, …), so pharos pulls no driver
-// dependency yet works out of the box. It is a faithful port of the source repository: endpoint
-// last-status is derived from the latest check (a LEFT JOIN), affected-services are JSON, subscriber
+// dependency yet works out of the box. Endpoint last-status is derived from the latest check (a LEFT
+// JOIN), affected-services are JSON, subscriber
 // emails/tokens are stored exactly as given (opaque — the crypto is the subscriber-service seam). The
 // StatusStore interface remains the escape-hatch for mesh-gateway or in-memory backends (MemStore).
 type SQLStore struct {
@@ -30,7 +30,7 @@ func NewSQLStore(db *sql.DB) *SQLStore {
 var _ StatusStore = (*SQLStore)(nil)
 
 // sqlSchema is the idempotent DDL (pharos_* tables). A status page has no axis, so no owner/tenant
-// column — the model is global, matching the source.
+// column — the model is global.
 var sqlSchema = []string{
 	`CREATE TABLE IF NOT EXISTS pharos_services (slug TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, display_order INTEGER DEFAULT 0, created_at INTEGER DEFAULT (unixepoch()))`,
 	`CREATE TABLE IF NOT EXISTS pharos_endpoints (slug TEXT PRIMARY KEY, name TEXT NOT NULL, url TEXT NOT NULL, type TEXT NOT NULL DEFAULT 'http', service_slug TEXT NOT NULL, interval_seconds INTEGER DEFAULT 30, timeout_ms INTEGER DEFAULT 5000, enabled INTEGER DEFAULT 1, created_at INTEGER DEFAULT (unixepoch()))`,
@@ -103,8 +103,8 @@ func (s *SQLStore) GetServiceBySlug(ctx context.Context, slug string) (*Service,
 	return &v, nil
 }
 
-// UpsertService inserts/updates a service (seeding helper; not in the source Repository, which seeded
-// via SQL — kept store-agnostic here).
+// UpsertService inserts/updates a service (seeding helper, kept store-agnostic; the read side —
+// GetAllServices/GetServiceBySlug — is read-only).
 func (s *SQLStore) UpsertService(ctx context.Context, v *Service) error {
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO pharos_services (slug, name, description, display_order) VALUES (?, ?, ?, ?)

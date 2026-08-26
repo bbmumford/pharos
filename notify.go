@@ -7,7 +7,7 @@ import (
 )
 
 // Notification is one message to deliver. Audience lets a channel route admin vs subscriber traffic
-// differently (the source used two distinct notify operations for the two audiences).
+// differently (an admin alert and a subscriber alert are distinct audiences).
 type Notification struct {
 	Kind     string // e.g. "service-alert"
 	To       string // recipient address (admin, or a subscriber's decrypted email)
@@ -16,10 +16,9 @@ type Notification struct {
 	Audience string // "admin" | "subscriber"
 }
 
-// NotificationChannel delivers a Notification. It is the pluggable delivery sink (§22 patterns 1/8):
-// a consumer wires email / SMS / webhook / the notify domain, and can compose several. Replacing the
-// source's hard-wired mesh RPC to hstles.notification.* with this seam is what makes the status
-// system delivery-agnostic.
+// NotificationChannel delivers a Notification. It is the pluggable delivery sink: a consumer wires
+// email / SMS / webhook / a notification service, and can compose several. Delivery being an injected
+// seam rather than a hard-wired call is what makes the status system delivery-agnostic.
 type NotificationChannel interface {
 	Send(ctx context.Context, n Notification) error
 }
@@ -27,7 +26,7 @@ type NotificationChannel interface {
 // Encryptor encrypts on subscribe and decrypts a subscriber's stored email just-in-time to address a
 // message. The store holds only ciphertext; the notifier never persists plaintext. Injected — a
 // deployment with real subscriber PII wires AES-GCM/etc. A nil Encryptor uses the stored value as-is,
-// matching the source's pre-encryption behavior (its "decrypt when encryption is wired" TODO).
+// for a deployment that has not wired encryption yet.
 type Encryptor interface {
 	Encrypt(plaintext string) (string, error)
 	Decrypt(ciphertext string) (string, error)

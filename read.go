@@ -39,7 +39,7 @@ func NewReader(store StatusStore) *Reader { return &Reader{store: store} }
 
 // DetermineServiceStatus is the worst-of-endpoints rule: any outage (all endpoints out → major, some
 // → partial) beats any degraded beats operational; no endpoints (or all operational/blank) →
-// operational. Exported because it is the reusable status-precedence primitive (§22.8) callers reuse.
+// operational. Exported so a consumer building its own view reuses this exact worst-of rule.
 func DetermineServiceStatus(endpoints []Endpoint) string {
 	if len(endpoints) == 0 {
 		return StatusOperational
@@ -81,8 +81,8 @@ func statusRank(s string) int {
 	}
 }
 
-// endpointsByService bulk-fetches all endpoints once and groups them (avoids the source's N+1
-// per-service query that blew the handler deadline on a round-trip store).
+// endpointsByService bulk-fetches all endpoints once and groups them (avoids an N+1
+// per-service query that would blow a handler deadline on a round-trip store).
 func (r *Reader) endpointsByService(ctx context.Context) (map[string][]Endpoint, error) {
 	all, err := r.store.GetAllEndpoints(ctx)
 	if err != nil {
@@ -98,7 +98,7 @@ func (r *Reader) endpointsByService(ctx context.Context) (map[string][]Endpoint,
 // OverallStatus rolls every service up to a single worst-of status plus operational/degraded/outage
 // counts and active incident/maintenance counts (with the first maxOngoingIncidents incidents). On a
 // hard store failure it returns a degraded status alongside the error, so a status page can render
-// "degraded" rather than nothing (the source's resilience), while the consumer still sees the error.
+// "degraded" rather than nothing, while the consumer still sees the error.
 func (r *Reader) OverallStatus(ctx context.Context) (OverallStatus, error) {
 	services, err := r.store.GetAllServices(ctx)
 	if err != nil {

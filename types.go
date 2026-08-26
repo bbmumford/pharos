@@ -5,15 +5,15 @@
 // an injected seam WITHIN the package, not a separate module.
 //
 // A status page has NO tenant/org axis: overall status, services, incidents, maintenance windows and
-// uptime are public (the source registers them ScopeNone). So — unlike a session or authority core —
-// there is no axis to lift; neutralisation here means dropping the platform-domain couplings (the pb
-// wire types, the shared debug logger, the baked mesh-status reader, the baked email crypto) for
-// package-owned neutral types and injected seams, while preserving every capability: HTTP+mesh health
-// checks, combined-vs-raw status, incidents with updates, maintenance windows, daily uptime
-// aggregation, a status-change audit log, and verified email subscribers.
+// uptime are public reads. So — unlike a session or authority core — there is no axis to lift; the
+// couplings a platform domain would carry (wire/proto types, a shared debug logger, a baked
+// mesh-status reader, baked email crypto) are instead package-owned neutral types and injected seams,
+// preserving every capability: HTTP+mesh health checks, combined-vs-raw status, incidents with
+// updates, maintenance windows, daily uptime aggregation, a status-change audit log, and verified
+// email subscribers.
 //
-// Times are Unix seconds (int64), matching the source's SQLite `unixepoch()` columns exactly, so the
-// store contract is a faithful, conversion-free port. A zero timestamp means "unset".
+// Times are Unix seconds (int64), so a SQL store maps them to integer columns with no conversion. A
+// zero timestamp means "unset".
 package pharos
 
 // Service is a logical grouping of endpoints shown as one row on the status page.

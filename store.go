@@ -13,7 +13,7 @@ var ErrNotFound = errors.New("pharos: not found")
 // health checks, maintenance windows, incidents (+updates), daily uptime metrics, the status-change
 // audit log, and email subscribers. It is the one seam a consumer supplies (a SQLite/Turso
 // implementation, or the package's reference MemStore); every field it moves is a neutral pharos
-// type, so no consumer needs the source's pb wire types. Times are Unix seconds.
+// type, so no consumer needs a wire/proto type to use it. Times are Unix seconds.
 //
 // The store persists exactly what it is given and interprets no policy: subscriber emails arrive
 // already encrypted+hashed and tokens already hashed (the subscriber service owns the crypto behind
@@ -53,9 +53,8 @@ type StatusStore interface {
 	DeleteIncident(ctx context.Context, id string) error
 	DeleteAllIncidents(ctx context.Context) (deleted int, err error)
 	GetIncidentUpdates(ctx context.Context, incidentID string) ([]IncidentUpdate, error)
-	// InsertIncidentUpdate appends a post to an incident's timeline. The source Repository read the
-	// incident_updates table but had no insert of its own (updates were written by other code); a
-	// standalone package must own the write to preserve the incident-timeline capability.
+	// InsertIncidentUpdate appends a post to an incident's timeline; GetIncidentUpdates reads it back.
+	// A standalone package owns this write so the incident-timeline capability is complete.
 	InsertIncidentUpdate(ctx context.Context, u *IncidentUpdate) error
 
 	// ── Uptime metrics ──
