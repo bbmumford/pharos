@@ -31,6 +31,36 @@ func TestServices_OrderAndLookup(t *testing.T) {
 	}
 }
 
+func TestEndpoints_DerivedLastStatusAndEnabledFilter(t *testing.T) {
+	m := storeAt(time.Unix(1000, 0))
+	m.UpsertEndpoint(ctx, &Endpoint{Slug: "on", ServiceSlug: "s", Name: "on", Enabled: true})
+	m.UpsertEndpoint(ctx, &Endpoint{Slug: "off", ServiceSlug: "s", Name: "off", Enabled: false})
+	// last status is derived from the LATEST check, not stored
+	m.InsertCheck(ctx, &Check{EndpointSlug: "on", Status: StatusOperational, HTTPStatus: StatusOperational, CheckedAt: 100})
+	m.InsertCheck(ctx, &Check{EndpointSlug: "on", Status: StatusMajorOutage, HTTPStatus: StatusMajorOutage, ResponseTimeMS: 7, CheckedAt: 200})
+
+	// GetAllEndpoints excludes disabled and derives last status from the newest check
+	all, _ := m.GetAllEndpoints(ctx)
+	if len(all) != 1 || all[0].Slug != "on" {
+		t.Fatalf("GetAllEndpoints must return only enabled endpoints; got %+v", all)
+	}
+	if all[0].LastStatus != StatusMajorOutage || all[0].LastCheckAt != 200 || all[0].LastResponseMS != 7 {
+		t.Fatalf("last status must derive from the newest check; got status=%q at=%d ms=%d", all[0].LastStatus, all[0].LastCheckAt, all[0].LastResponseMS)
+	}
+	// GetEndpointsByService returns disabled too; a never-checked endpoint derives "unknown"
+	svc, _ := m.GetEndpointsByService(ctx, "s")
+	if len(svc) != 2 {
+		t.Fatalf("GetEndpointsByService must include disabled; got %d", len(svc))
+	}
+	byName := map[string]Endpoint{}
+	for _, e := range svc {
+		byName[e.Slug] = e
+	}
+	if byName["off"].LastStatus != "unknown" {
+		t.Fatalf("a never-checked endpoint must derive \"unknown\"; got %q", byName["off"].LastStatus)
+	}
+}
+
 func TestChecks_RecentOrderAndLimit(t *testing.T) {
 	m := storeAt(time.Unix(1000, 0))
 	for i, at := range []int64{100, 300, 200} {

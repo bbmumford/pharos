@@ -60,7 +60,7 @@ func TestAggregator_RunOnceCoversTodayAndYesterday(t *testing.T) {
 	fixed := func() time.Time { return time.Unix(1609545600+43200, 0) } // 2021-01-02 noon
 	store := NewMemStore()
 	store.now = fixed
-	store.UpsertEndpoint(ctx, &Endpoint{Slug: "api", ServiceSlug: "svc"})
+	store.UpsertEndpoint(ctx, &Endpoint{Slug: "api", ServiceSlug: "svc", Enabled: true})
 	store.InsertCheck(ctx, &Check{EndpointSlug: "api", Status: StatusOperational, CheckedAt: 1609459200 + 43200}) // 2021-01-01
 	store.InsertCheck(ctx, &Check{EndpointSlug: "api", Status: StatusOperational, CheckedAt: 1609545600 + 43200}) // 2021-01-02
 	a, _ := NewUptimeAggregator(AggregatorConfig{Store: store, Now: fixed})

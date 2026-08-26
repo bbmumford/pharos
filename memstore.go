@@ -103,27 +103,61 @@ func (m *MemStore) UpsertService(_ context.Context, s *Service) error {
 
 // ── Endpoints ──
 
+// derived returns e with LastStatus/LastHTTPStatus/LastCheckAt/LastResponseMS taken from its most
+// recent check ("unknown" when never checked). These four fields are NOT persisted on the endpoint —
+// they are computed from the checks table, matching the SQL store's latest-check LEFT JOIN. Caller
+// holds m.mu.
+func (m *MemStore) derived(e Endpoint) Endpoint {
+	var latest *Check
+	for _, c := range m.checks {
+		if c.EndpointSlug != e.Slug {
+			continue
+		}
+		if latest == nil || c.CheckedAt > latest.CheckedAt || (c.CheckedAt == latest.CheckedAt && c.ID > latest.ID) {
+			latest = c
+		}
+	}
+	if latest == nil {
+		e.LastStatus, e.LastHTTPStatus, e.LastCheckAt, e.LastResponseMS = "unknown", "", 0, 0
+	} else {
+		e.LastStatus, e.LastHTTPStatus, e.LastCheckAt, e.LastResponseMS = latest.Status, latest.HTTPStatus, latest.CheckedAt, latest.ResponseTimeMS
+	}
+	return e
+}
+
+// GetEndpointsByService returns every endpoint for a service (enabled or not, matching the source),
+// ordered by name, each with its derived last-check status.
 func (m *MemStore) GetEndpointsByService(_ context.Context, serviceSlug string) ([]Endpoint, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	var out []Endpoint
 	for _, e := range m.endpoints {
 		if e.ServiceSlug == serviceSlug {
-			out = append(out, *e)
+			out = append(out, m.derived(*e))
 		}
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Slug < out[j].Slug })
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out, nil
 }
 
+// GetAllEndpoints returns only ENABLED endpoints (source: WHERE enabled = 1), ordered by
+// service+name, each with its derived last-check status.
 func (m *MemStore) GetAllEndpoints(_ context.Context) ([]Endpoint, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	out := make([]Endpoint, 0, len(m.endpoints))
+	var out []Endpoint
 	for _, e := range m.endpoints {
-		out = append(out, *e)
+		if !e.Enabled {
+			continue
+		}
+		out = append(out, m.derived(*e))
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Slug < out[j].Slug })
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].ServiceSlug != out[j].ServiceSlug {
+			return out[i].ServiceSlug < out[j].ServiceSlug
+		}
+		return out[i].Name < out[j].Name
+	})
 	return out, nil
 }
 
@@ -134,7 +168,7 @@ func (m *MemStore) GetEndpointBySlug(_ context.Context, slug string) (*Endpoint,
 	if !ok {
 		return nil, ErrNotFound
 	}
-	cp := *e
+	cp := m.derived(*e)
 	return &cp, nil
 }
 
