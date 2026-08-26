@@ -53,6 +53,10 @@ type StatusStore interface {
 	DeleteIncident(ctx context.Context, id string) error
 	DeleteAllIncidents(ctx context.Context) (deleted int, err error)
 	GetIncidentUpdates(ctx context.Context, incidentID string) ([]IncidentUpdate, error)
+	// InsertIncidentUpdate appends a post to an incident's timeline. The source Repository read the
+	// incident_updates table but had no insert of its own (updates were written by other code); a
+	// standalone package must own the write to preserve the incident-timeline capability.
+	InsertIncidentUpdate(ctx context.Context, u *IncidentUpdate) error
 
 	// ── Uptime metrics ──
 	GetUptimeMetrics(ctx context.Context, endpointSlug, serviceSlug string, days int) ([]UptimeMetric, error)
