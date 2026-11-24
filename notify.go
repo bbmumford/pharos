@@ -25,8 +25,9 @@ type NotificationChannel interface {
 
 // Encryptor encrypts on subscribe and decrypts a subscriber's stored email just-in-time to address a
 // message. The store holds only ciphertext; the notifier never persists plaintext. Injected — a
-// deployment with real subscriber PII wires AES-GCM/etc. A nil Encryptor uses the stored value as-is,
-// for a deployment that has not wired encryption yet.
+// deployment with real subscriber PII wires AES-GCM/etc. Without one, subscribing is refused
+// (SubscriberService) and the notifier sends no subscriber mail, because a stored value it cannot
+// unseal is never used as an address.
 type Encryptor interface {
 	Encrypt(plaintext string) (string, error)
 	Decrypt(ciphertext string) (string, error)
@@ -46,7 +47,7 @@ type StatusChangeEvent struct {
 type NotifierConfig struct {
 	Store          StatusStore
 	Channel        NotificationChannel
-	Encryptor      Encryptor     // optional; nil ⇒ stored email used as-is
+	Encryptor      Encryptor     // nil ⇒ no subscriber mail; the admin alert still goes
 	AdminRecipient string        // admin alert address; "" ⇒ skip the admin alert
 	BatchSize      int           // subscriber fan-out batch size (default 50)
 	BatchPause     time.Duration // pause between batches (default 1s); 0 in tests
@@ -153,8 +154,14 @@ func (n *StatusNotifier) deliver(e StatusChangeEvent) {
 	n.notifySubscribers(title, message)
 }
 
-// notifySubscribers delivers to every verified subscriber in batches, decrypting each email.
+// notifySubscribers delivers to every verified subscriber in batches, decrypting each email. With no
+// Encryptor it sends nothing: the store holds sealed addresses, and using a stored value as an address
+// would mail a ciphertext, or treat an address stored unsealed as if the store's contract held.
 func (n *StatusNotifier) notifySubscribers(title, message string) {
+	if n.enc == nil {
+		n.logf("notifier: no Encryptor; subscriber alerts withheld")
+		return
+	}
 	subs, err := n.store.GetVerifiedSubscribers(context.Background())
 	if err != nil {
 		n.logf("notifier: get subscribers: %v", err)
@@ -189,11 +196,8 @@ func (n *StatusNotifier) notifySubscribers(title, message string) {
 	n.logf("notifier: subscriber fan-out complete (sent=%d failed=%d)", sent, failed)
 }
 
-// decryptEmail returns the plaintext email; with no Encryptor the stored value is used as-is.
+// decryptEmail returns the plaintext email; notifySubscribers calls it only with an Encryptor wired.
 func (n *StatusNotifier) decryptEmail(stored string) (string, error) {
-	if n.enc == nil {
-		return stored, nil
-	}
 	return n.enc.Decrypt(stored)
 }
 
