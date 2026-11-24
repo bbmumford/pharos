@@ -265,6 +265,7 @@ func (h *HealthChecker) checkEndpoint(ctx context.Context, ep Endpoint) {
 	if timeout <= 0 {
 		timeout = 5 * time.Second
 	}
+	previous := h.previousStatus(ctx, ep)
 	res := h.prober.Probe(ctx, ep.URL, timeout)
 	httpStatus := res.Status // raw HTTP status before mesh overlay
 
@@ -294,10 +295,10 @@ func (h *HealthChecker) checkEndpoint(ctx context.Context, ep Endpoint) {
 		h.logf("healthchecker: record check %s: %v", ep.Slug, err)
 	}
 
-	if res.Status == ep.LastStatus || ep.LastStatus == "" {
+	if res.Status == previous || previous == "" {
 		return // no transition (or first-ever check)
 	}
-	if err := h.store.InsertStatusChange(ctx, ep.Slug, ep.LastStatus, res.Status, res.ErrorMessage, ""); err != nil {
+	if err := h.store.InsertStatusChange(ctx, ep.Slug, previous, res.Status, res.ErrorMessage, ""); err != nil {
 		h.logf("healthchecker: record status change %s: %v", ep.Slug, err)
 	}
 	if isDown(res.Status) {
@@ -305,6 +306,23 @@ func (h *HealthChecker) checkEndpoint(ctx context.Context, ep Endpoint) {
 	} else {
 		h.resolveIncident(ctx, ep)
 	}
+}
+
+// previousStatus answers the endpoint's combined status before this check: the status of the store's
+// latest recorded check of it, the record every check writes; before any check, the endpoint's own
+// LastStatus. A config endpoint's LastStatus is fixed when it is configured, so reading it alone would
+// never see a change; the store's record also lets a restarted checker carry on from what it recorded
+// before. Empty means the endpoint has never been checked.
+func (h *HealthChecker) previousStatus(ctx context.Context, ep Endpoint) string {
+	checks, err := h.store.GetRecentChecks(ctx, ep.Slug, 1)
+	if err != nil {
+		h.logf("healthchecker: read last check %s: %v", ep.Slug, err)
+		return ep.LastStatus
+	}
+	if len(checks) == 0 {
+		return ep.LastStatus
+	}
+	return checks[0].Status
 }
 
 func isDown(status string) bool {

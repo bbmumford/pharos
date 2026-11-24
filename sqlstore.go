@@ -220,7 +220,7 @@ func (s *SQLStore) InsertCheck(ctx context.Context, c *Check) error {
 func (s *SQLStore) GetRecentChecks(ctx context.Context, endpointSlug string, limit int) ([]Check, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, endpoint_slug, status, http_status, response_time_ms, status_code, error_message, checked_at, node_id
-		FROM pharos_checks WHERE endpoint_slug = ? ORDER BY checked_at DESC LIMIT ?`, endpointSlug, limit)
+		FROM pharos_checks WHERE endpoint_slug = ? ORDER BY checked_at DESC, id DESC LIMIT ?`, endpointSlug, limit)
 	if err != nil {
 		return nil, err
 	}
