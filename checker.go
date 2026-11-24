@@ -247,10 +247,11 @@ func (h *HealthChecker) endpoints(ctx context.Context) []Endpoint {
 }
 
 // RunOnce performs one full check cycle over every enabled endpoint. Exported so a consumer can drive
-// checks on its own schedule and so the incident logic is testable without the loop.
+// checks on its own schedule and so the incident logic is testable without the loop. The endpoint list
+// is read once per cycle, so a read that fails or answers fewer endpoints partway through a cycle cannot
+// leave the loop indexing past the list it is walking.
 func (h *HealthChecker) RunOnce(ctx context.Context) {
-	for i := range h.endpoints(ctx) {
-		ep := h.endpoints(ctx)[i]
+	for _, ep := range h.endpoints(ctx) {
 		if !ep.Enabled {
 			continue
 		}
