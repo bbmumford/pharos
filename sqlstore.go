@@ -78,7 +78,7 @@ func (s *SQLStore) GetAllServices(ctx context.Context) ([]Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer closeRows(rows)
 	var out []Service
 	for rows.Next() {
 		var v Service
@@ -134,7 +134,7 @@ func (s *SQLStore) GetEndpointsByService(ctx context.Context, serviceSlug string
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer closeRows(rows)
 	var out []Endpoint
 	for rows.Next() {
 		e, err := scanEndpoint(rows)
@@ -151,7 +151,7 @@ func (s *SQLStore) GetAllEndpoints(ctx context.Context) ([]Endpoint, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer closeRows(rows)
 	var out []Endpoint
 	for rows.Next() {
 		e, err := scanEndpoint(rows)
@@ -224,7 +224,7 @@ func (s *SQLStore) GetRecentChecks(ctx context.Context, endpointSlug string, lim
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer closeRows(rows)
 	var out []Check
 	for rows.Next() {
 		var c Check
@@ -249,7 +249,7 @@ func (s *SQLStore) GetMaintenanceWindows(ctx context.Context, includeCompleted b
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer closeRows(rows)
 	var out []MaintenanceWindow
 	for rows.Next() {
 		var w MaintenanceWindow
@@ -313,7 +313,7 @@ func (s *SQLStore) GetIncidents(ctx context.Context, includeResolved bool, days 
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer closeRows(rows)
 	var out []Incident
 	for rows.Next() {
 		var i Incident
@@ -380,7 +380,7 @@ func (s *SQLStore) GetIncidentUpdates(ctx context.Context, incidentID string) ([
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer closeRows(rows)
 	var out []IncidentUpdate
 	for rows.Next() {
 		var u IncidentUpdate
@@ -426,7 +426,7 @@ func (s *SQLStore) GetUptimeMetrics(ctx context.Context, endpointSlug, serviceSl
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer closeRows(rows)
 	var out []UptimeMetric
 	for rows.Next() {
 		var m UptimeMetric
@@ -505,7 +505,7 @@ func (s *SQLStore) GetVerifiedSubscribers(ctx context.Context) ([]Subscriber, er
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer closeRows(rows)
 	var out []Subscriber
 	for rows.Next() {
 		var sub Subscriber
@@ -523,3 +523,9 @@ func (s *SQLStore) SubscriberExistsByEmailHash(ctx context.Context, emailHash st
 	err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM pharos_subscribers WHERE email_hash = ?`, emailHash).Scan(&n)
 	return n > 0, err
 }
+
+// closeRows is the deferred Close of every query's rows in this package.
+// database/sql closes rows itself once Next reports the end, so a normal return
+// leaves nothing to close, and an early return already carries the error that
+// stopped the read; its result is dropped.
+func closeRows(rows *sql.Rows) { _ = rows.Close() }

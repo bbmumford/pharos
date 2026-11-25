@@ -47,9 +47,15 @@ func TestNotifier_AdminAndSubscribersDecryptedAndTitled(t *testing.T) {
 	store := NewMemStore()
 	store.now = at1000
 	// two verified subscribers, emails stored ENCRYPTED; one unverified (must be skipped)
-	store.InsertSubscriber(ctx, &Subscriber{EmailEncrypted: "enc:a@x.com", EmailHash: "ha", VerifyTokenHash: "va", Verified: true, VerifiedAt: 1})
-	store.InsertSubscriber(ctx, &Subscriber{EmailEncrypted: "enc:b@x.com", EmailHash: "hb", VerifyTokenHash: "vb", Verified: true, VerifiedAt: 1})
-	store.InsertSubscriber(ctx, &Subscriber{EmailEncrypted: "enc:c@x.com", EmailHash: "hc", VerifyTokenHash: "vc", Verified: false})
+	if err := store.InsertSubscriber(ctx, &Subscriber{EmailEncrypted: "enc:a@x.com", EmailHash: "ha", VerifyTokenHash: "va", Verified: true, VerifiedAt: 1}); err != nil {
+		t.Fatalf("store.InsertSubscriber: %v", err)
+	}
+	if err := store.InsertSubscriber(ctx, &Subscriber{EmailEncrypted: "enc:b@x.com", EmailHash: "hb", VerifyTokenHash: "vb", Verified: true, VerifiedAt: 1}); err != nil {
+		t.Fatalf("store.InsertSubscriber: %v", err)
+	}
+	if err := store.InsertSubscriber(ctx, &Subscriber{EmailEncrypted: "enc:c@x.com", EmailHash: "hc", VerifyTokenHash: "vc", Verified: false}); err != nil {
+		t.Fatalf("store.InsertSubscriber: %v", err)
+	}
 
 	ch := &captureChannel{}
 	n, err := NewStatusNotifier(NotifierConfig{

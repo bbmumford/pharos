@@ -17,8 +17,12 @@ var ctx = context.Background()
 
 func TestServices_OrderAndLookup(t *testing.T) {
 	m := storeAt(time.Unix(1000, 0))
-	m.UpsertService(ctx, &Service{Slug: "b", Name: "B", DisplayOrder: 2})
-	m.UpsertService(ctx, &Service{Slug: "a", Name: "A", DisplayOrder: 1})
+	if err := m.UpsertService(ctx, &Service{Slug: "b", Name: "B", DisplayOrder: 2}); err != nil {
+		t.Fatalf("m.UpsertService: %v", err)
+	}
+	if err := m.UpsertService(ctx, &Service{Slug: "a", Name: "A", DisplayOrder: 1}); err != nil {
+		t.Fatalf("m.UpsertService: %v", err)
+	}
 	got, _ := m.GetAllServices(ctx)
 	if len(got) != 2 || got[0].Slug != "a" || got[1].Slug != "b" {
 		t.Fatalf("services must order by display_order; got %+v", got)
@@ -33,11 +37,19 @@ func TestServices_OrderAndLookup(t *testing.T) {
 
 func TestEndpoints_DerivedLastStatusAndEnabledFilter(t *testing.T) {
 	m := storeAt(time.Unix(1000, 0))
-	m.UpsertEndpoint(ctx, &Endpoint{Slug: "on", ServiceSlug: "s", Name: "on", Enabled: true})
-	m.UpsertEndpoint(ctx, &Endpoint{Slug: "off", ServiceSlug: "s", Name: "off", Enabled: false})
+	if err := m.UpsertEndpoint(ctx, &Endpoint{Slug: "on", ServiceSlug: "s", Name: "on", Enabled: true}); err != nil {
+		t.Fatalf("m.UpsertEndpoint: %v", err)
+	}
+	if err := m.UpsertEndpoint(ctx, &Endpoint{Slug: "off", ServiceSlug: "s", Name: "off", Enabled: false}); err != nil {
+		t.Fatalf("m.UpsertEndpoint: %v", err)
+	}
 	// last status is derived from the LATEST check, not stored
-	m.InsertCheck(ctx, &Check{EndpointSlug: "on", Status: StatusOperational, HTTPStatus: StatusOperational, CheckedAt: 100})
-	m.InsertCheck(ctx, &Check{EndpointSlug: "on", Status: StatusMajorOutage, HTTPStatus: StatusMajorOutage, ResponseTimeMS: 7, CheckedAt: 200})
+	if err := m.InsertCheck(ctx, &Check{EndpointSlug: "on", Status: StatusOperational, HTTPStatus: StatusOperational, CheckedAt: 100}); err != nil {
+		t.Fatalf("m.InsertCheck: %v", err)
+	}
+	if err := m.InsertCheck(ctx, &Check{EndpointSlug: "on", Status: StatusMajorOutage, HTTPStatus: StatusMajorOutage, ResponseTimeMS: 7, CheckedAt: 200}); err != nil {
+		t.Fatalf("m.InsertCheck: %v", err)
+	}
 
 	// GetAllEndpoints excludes disabled and derives last status from the newest check
 	all, _ := m.GetAllEndpoints(ctx)
@@ -65,12 +77,16 @@ func TestChecks_RecentOrderAndLimit(t *testing.T) {
 	m := storeAt(time.Unix(1000, 0))
 	for i, at := range []int64{100, 300, 200} {
 		c := &Check{EndpointSlug: "api", Status: "up", CheckedAt: at}
-		m.InsertCheck(ctx, c)
+		if err := m.InsertCheck(ctx, c); err != nil {
+			t.Fatalf("m.InsertCheck: %v", err)
+		}
 		if c.ID == 0 {
 			t.Fatalf("InsertCheck must assign an id (case %d)", i)
 		}
 	}
-	m.InsertCheck(ctx, &Check{EndpointSlug: "other", CheckedAt: 999})
+	if err := m.InsertCheck(ctx, &Check{EndpointSlug: "other", CheckedAt: 999}); err != nil {
+		t.Fatalf("m.InsertCheck: %v", err)
+	}
 	got, _ := m.GetRecentChecks(ctx, "api", 2)
 	if len(got) != 2 || got[0].CheckedAt != 300 || got[1].CheckedAt != 200 {
 		t.Fatalf("recent checks must be checked_at DESC, limited, endpoint-scoped; got %+v", got)
@@ -81,11 +97,17 @@ func TestMaintenance_CutoffCompletedAndActiveWindow(t *testing.T) {
 	now := time.Unix(1_000_000, 0)
 	m := storeAt(now)
 	// active window covering "api" right now
-	m.InsertMaintenanceWindow(ctx, &MaintenanceWindow{Title: "DB upgrade", AffectedServices: []string{"api"}, StartAt: now.Unix() - 100, EndAt: now.Unix() + 100, Status: "in_progress"})
+	if err := m.InsertMaintenanceWindow(ctx, &MaintenanceWindow{Title: "DB upgrade", AffectedServices: []string{"api"}, StartAt: now.Unix() - 100, EndAt: now.Unix() + 100, Status: "in_progress"}); err != nil {
+		t.Fatalf("m.InsertMaintenanceWindow: %v", err)
+	}
 	// completed window inside the day range
-	m.InsertMaintenanceWindow(ctx, &MaintenanceWindow{Title: "done", AffectedServices: []string{"api"}, StartAt: now.Unix() - 50, EndAt: now.Unix() - 10, Status: "completed"})
+	if err := m.InsertMaintenanceWindow(ctx, &MaintenanceWindow{Title: "done", AffectedServices: []string{"api"}, StartAt: now.Unix() - 50, EndAt: now.Unix() - 10, Status: "completed"}); err != nil {
+		t.Fatalf("m.InsertMaintenanceWindow: %v", err)
+	}
 	// old window outside the day cutoff
-	m.InsertMaintenanceWindow(ctx, &MaintenanceWindow{Title: "ancient", AffectedServices: []string{"api"}, StartAt: now.Unix() - 100*86400, EndAt: now.Unix() - 100*86400, Status: "scheduled"})
+	if err := m.InsertMaintenanceWindow(ctx, &MaintenanceWindow{Title: "ancient", AffectedServices: []string{"api"}, StartAt: now.Unix() - 100*86400, EndAt: now.Unix() - 100*86400, Status: "scheduled"}); err != nil {
+		t.Fatalf("m.InsertMaintenanceWindow: %v", err)
+	}
 
 	active, _ := m.GetMaintenanceWindows(ctx, false, 30)
 	if len(active) != 1 || active[0].Title != "DB upgrade" {
@@ -108,9 +130,15 @@ func TestIncidents_CutoffResolvedAndTimeline(t *testing.T) {
 	now := time.Unix(1_000_000, 0)
 	m := storeAt(now)
 	act := &Incident{Title: "down", Status: "investigating", AffectedServices: []string{"api"}, StartedAt: now.Unix() - 100}
-	m.InsertIncident(ctx, act)
-	m.InsertIncident(ctx, &Incident{Title: "fixed", Status: "resolved", StartedAt: now.Unix() - 200})
-	m.InsertIncident(ctx, &Incident{Title: "old", Status: "investigating", StartedAt: now.Unix() - 400*86400}) // outside the 365d active window
+	if err := m.InsertIncident(ctx, act); err != nil {
+		t.Fatalf("m.InsertIncident: %v", err)
+	}
+	if err := m.InsertIncident(ctx, &Incident{Title: "fixed", Status: "resolved", StartedAt: now.Unix() - 200}); err != nil {
+		t.Fatalf("m.InsertIncident: %v", err)
+	}
+	if err := m.InsertIncident(ctx, &Incident{Title: "old", Status: "investigating", StartedAt: now.Unix() - 400*86400}); err != nil {
+		t.Fatalf("m.InsertIncident: %v", err)
+	} // outside the 365d active window
 
 	active, _ := m.GetActiveIncidents(ctx)
 	if len(active) != 1 || active[0].Title != "down" {
@@ -121,8 +149,12 @@ func TestIncidents_CutoffResolvedAndTimeline(t *testing.T) {
 		t.Fatalf("includeResolved within 30d must return 2, started_at DESC; got %+v", all)
 	}
 	// timeline: an insert then read back, created_at DESC
-	m.InsertIncidentUpdate(ctx, &IncidentUpdate{IncidentID: act.ID, Status: "identified", Message: "root cause", CreatedAt: now.Unix()})
-	m.InsertIncidentUpdate(ctx, &IncidentUpdate{IncidentID: act.ID, Status: "monitoring", Message: "deployed fix", CreatedAt: now.Unix() + 10})
+	if err := m.InsertIncidentUpdate(ctx, &IncidentUpdate{IncidentID: act.ID, Status: "identified", Message: "root cause", CreatedAt: now.Unix()}); err != nil {
+		t.Fatalf("m.InsertIncidentUpdate: %v", err)
+	}
+	if err := m.InsertIncidentUpdate(ctx, &IncidentUpdate{IncidentID: act.ID, Status: "monitoring", Message: "deployed fix", CreatedAt: now.Unix() + 10}); err != nil {
+		t.Fatalf("m.InsertIncidentUpdate: %v", err)
+	}
 	ups, _ := m.GetIncidentUpdates(ctx, act.ID)
 	if len(ups) != 2 || ups[0].Status != "monitoring" {
 		t.Fatalf("incident timeline must return its updates created_at DESC; got %+v", ups)
@@ -132,11 +164,19 @@ func TestIncidents_CutoffResolvedAndTimeline(t *testing.T) {
 func TestUptime_EndpointAndServiceFilters(t *testing.T) {
 	now := time.Unix(1_600_000_000, 0)
 	m := storeAt(now)
-	m.UpsertEndpoint(ctx, &Endpoint{Slug: "api-1", ServiceSlug: "api"})
-	m.UpsertEndpoint(ctx, &Endpoint{Slug: "web-1", ServiceSlug: "web"})
+	if err := m.UpsertEndpoint(ctx, &Endpoint{Slug: "api-1", ServiceSlug: "api"}); err != nil {
+		t.Fatalf("m.UpsertEndpoint: %v", err)
+	}
+	if err := m.UpsertEndpoint(ctx, &Endpoint{Slug: "web-1", ServiceSlug: "web"}); err != nil {
+		t.Fatalf("m.UpsertEndpoint: %v", err)
+	}
 	today := now.Format("2006-01-02")
-	m.UpsertUptimeMetric(ctx, &UptimeMetric{EndpointSlug: "api-1", Date: today, UptimePercent: 99.9})
-	m.UpsertUptimeMetric(ctx, &UptimeMetric{EndpointSlug: "web-1", Date: today, UptimePercent: 100})
+	if err := m.UpsertUptimeMetric(ctx, &UptimeMetric{EndpointSlug: "api-1", Date: today, UptimePercent: 99.9}); err != nil {
+		t.Fatalf("m.UpsertUptimeMetric: %v", err)
+	}
+	if err := m.UpsertUptimeMetric(ctx, &UptimeMetric{EndpointSlug: "web-1", Date: today, UptimePercent: 100}); err != nil {
+		t.Fatalf("m.UpsertUptimeMetric: %v", err)
+	}
 
 	if got, _ := m.GetUptimeMetrics(ctx, "api-1", "", 7); len(got) != 1 || got[0].EndpointSlug != "api-1" {
 		t.Fatalf("endpoint filter must narrow to one; got %+v", got)
@@ -154,7 +194,9 @@ func TestSubscribers_LifecycleAndOpacity(t *testing.T) {
 	m := storeAt(now)
 	// the store only ever sees ciphertext + hashes (crypto is a service-layer seam)
 	s := &Subscriber{EmailEncrypted: "ENC", EmailHash: "H", VerifyTokenHash: "VT", UnsubTokenHash: "UT"}
-	m.InsertSubscriber(ctx, s)
+	if err := m.InsertSubscriber(ctx, s); err != nil {
+		t.Fatalf("m.InsertSubscriber: %v", err)
+	}
 	if s.ID == "" {
 		t.Fatal("InsertSubscriber must assign an id")
 	}

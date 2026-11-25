@@ -7,7 +7,9 @@ import "testing"
 func TestNotifier_NoEncryptorWithholdsSubscriberMail(t *testing.T) {
 	store := NewMemStore()
 	store.now = at1000
-	store.InsertSubscriber(ctx, &Subscriber{EmailEncrypted: "a@x.com", EmailHash: "ha", VerifyTokenHash: "va", Verified: true, VerifiedAt: 1})
+	if err := store.InsertSubscriber(ctx, &Subscriber{EmailEncrypted: "a@x.com", EmailHash: "ha", VerifyTokenHash: "va", Verified: true, VerifiedAt: 1}); err != nil {
+		t.Fatalf("store.InsertSubscriber: %v", err)
+	}
 	ch := &captureChannel{}
 	n, err := NewStatusNotifier(NotifierConfig{Store: store, Channel: ch, AdminRecipient: "ops@x.com"})
 	if err != nil {

@@ -230,7 +230,7 @@ func (m *MemStore) GetMaintenanceWindows(_ context.Context, includeCompleted boo
 	cutoff := m.now().AddDate(0, 0, -days).Unix()
 	var out []MaintenanceWindow
 	for _, w := range m.maintenance {
-		if !(w.StartAt >= cutoff || w.EndAt >= cutoff) {
+		if w.StartAt < cutoff && w.EndAt < cutoff {
 			continue
 		}
 		if !includeCompleted && (w.Status == "completed" || w.Status == "cancelled") {

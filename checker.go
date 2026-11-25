@@ -85,7 +85,9 @@ func (p *HTTPProber) Probe(ctx context.Context, url string, timeout time.Duratio
 		r.ErrorMessage = err.Error()
 		return r
 	}
-	defer resp.Body.Close()
+	// The check reads only the status line; the body is never read, and a failed
+	// close of it changes nothing in the result, so the close error is dropped.
+	defer func() { _ = resp.Body.Close() }()
 	r.StatusCode = resp.StatusCode
 
 	switch {

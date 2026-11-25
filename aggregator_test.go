@@ -19,10 +19,14 @@ func TestAggregator_UptimeAndAverageForDate(t *testing.T) {
 		{StatusOperational, 30},
 		{StatusMajorOutage, 40},
 	} {
-		store.InsertCheck(ctx, &Check{EndpointSlug: "api", Status: s.status, ResponseTimeMS: s.rtt, CheckedAt: noon + int64(i)})
+		if err := store.InsertCheck(ctx, &Check{EndpointSlug: "api", Status: s.status, ResponseTimeMS: s.rtt, CheckedAt: noon + int64(i)}); err != nil {
+			t.Fatalf("store.InsertCheck: %v", err)
+		}
 	}
 	// a check on a DIFFERENT day must be excluded
-	store.InsertCheck(ctx, &Check{EndpointSlug: "api", Status: StatusMajorOutage, ResponseTimeMS: 999, CheckedAt: noon + 2*86400})
+	if err := store.InsertCheck(ctx, &Check{EndpointSlug: "api", Status: StatusMajorOutage, ResponseTimeMS: 999, CheckedAt: noon + 2*86400}); err != nil {
+		t.Fatalf("store.InsertCheck: %v", err)
+	}
 
 	a, err := NewUptimeAggregator(AggregatorConfig{Store: store, Now: at1000})
 	if err != nil {
@@ -60,9 +64,15 @@ func TestAggregator_RunOnceCoversTodayAndYesterday(t *testing.T) {
 	fixed := func() time.Time { return time.Unix(1609545600+43200, 0) } // 2021-01-02 noon
 	store := NewMemStore()
 	store.now = fixed
-	store.UpsertEndpoint(ctx, &Endpoint{Slug: "api", ServiceSlug: "svc", Enabled: true})
-	store.InsertCheck(ctx, &Check{EndpointSlug: "api", Status: StatusOperational, CheckedAt: 1609459200 + 43200}) // 2021-01-01
-	store.InsertCheck(ctx, &Check{EndpointSlug: "api", Status: StatusOperational, CheckedAt: 1609545600 + 43200}) // 2021-01-02
+	if err := store.UpsertEndpoint(ctx, &Endpoint{Slug: "api", ServiceSlug: "svc", Enabled: true}); err != nil {
+		t.Fatalf("store.UpsertEndpoint: %v", err)
+	}
+	if err := store.InsertCheck(ctx, &Check{EndpointSlug: "api", Status: StatusOperational, CheckedAt: 1609459200 + 43200}); err != nil {
+		t.Fatalf("store.InsertCheck: %v", err)
+	} // 2021-01-01
+	if err := store.InsertCheck(ctx, &Check{EndpointSlug: "api", Status: StatusOperational, CheckedAt: 1609545600 + 43200}); err != nil {
+		t.Fatalf("store.InsertCheck: %v", err)
+	} // 2021-01-02
 	a, _ := NewUptimeAggregator(AggregatorConfig{Store: store, Now: fixed})
 	a.RunOnce(ctx)
 	got, _ := store.GetUptimeMetrics(ctx, "api", "", 100000)

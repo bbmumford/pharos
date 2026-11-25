@@ -89,7 +89,9 @@ func TestChecker_IncidentCreateThenResolve(t *testing.T) {
 func TestChecker_ResolveStaleIncidents(t *testing.T) {
 	store := NewMemStore()
 	store.now = at1000
-	store.InsertIncident(ctx, &Incident{Title: "orphan", Status: "investigating", StartedAt: 500})
+	if err := store.InsertIncident(ctx, &Incident{Title: "orphan", Status: "investigating", StartedAt: 500}); err != nil {
+		t.Fatalf("store.InsertIncident: %v", err)
+	}
 	h, _ := NewHealthChecker(CheckerConfig{Store: store, Now: at1000})
 	h.ResolveStaleIncidents(ctx)
 	if active, _ := store.GetActiveIncidents(ctx); len(active) != 0 {
